@@ -17,7 +17,7 @@ class Clause(frozenset):
     @staticmethod
     def false():
         return Clause()
-
+    
     def orClause(self,clause):
         """
         Function computes the raw 'or' with the given clause
@@ -63,35 +63,71 @@ class Clause(frozenset):
             return Clause([lit for lit in self if not key == lit])
         return self
 
-    def conflictedVariables(self):
+    def conflictedVariables(self,target):
         """
         Function computes the set of conflicted variables in a clause
         """
         res = set([])
         for lit in self:
-            if (- lit) in self:
+            if (- lit) in target:
                 res.add(abs(lit))
         return res
     
-    ##
-    ## Counting Variables/Literals
-    ##
+    def forward(self,ctx):
+        res = self
+        for lit in self:
+            res = res.union(ctx[lit])
+        return res
     
-    def addClauseVariables(self,cnt):
-        cnt.update([abs(lit) for lit in clause])
-        return cnt
+    def findConflict(self,fwd,ctx):
+        for lit in self:
+            if fwd in ctx[lit]:
+                return lit
+        return None
     
-    def remClauseVariables(self,cnt):
-        cnt = cnt - Counter([abs(lit) for lit in self])
-        return cnt
-
-    def addClauseLiterals(self,cnt):
-        cnt.update([lit for lit in self])
-        return cnt
-
-    def remClauseLiterals(self,cnt):
-        cnt = cnt - Counter([lit for lit in self])
-        return cnt
+    def SATcore(self,src,dst,ctx):
+        """
+        This function computes the SAT core of an implication of the form
+        (src -> dst unless self) which corresponds to a clause of the
+        form (!src + self + dst).  This clause is SAT if the term (src
+        & !self & !dst) leads to a contradiction.  If that term leads
+        to a contradiction, the clause can be reduced to one of the
+        form (!x + !y) where x => z and y => !z.  If the clause is
+        SAT, we return (z,x,y).  If the clause is not SAT, we return
+        None.  Note: we do not consider (!src + dst) to be a valid SAT
+        core even if it is SAT.
+        """
+        negclause = self.negate()
+        deductions = negclause.forward(ctx)
+        clist = deductions.conflictedVariables(deductions)
+        if clist:
+            cvar = clist[0]
+            x = negclause.findConflict(cvar,ctx)
+            y = negclause.findConflict((- cvar),ctx)
+            return (cvar,x,y,self)
+        srcdeductions = ctx[src].forward(ctx).union([src])
+        clist = deductions.conflictedVariables(srcdeductions)
+        if clist:
+            cvar = clist[0]
+            if cvar in srcdeductions:
+                x = src
+                y = negclause.findConflict((- cvar),ctx)
+            else:
+                x = negclause.findConflict(cvar,ctx)
+                y = src
+            return (cvar,x,y,self)
+        dstdeductions = ctx[(- dst)].forward(ctx).union([(- dst)])
+        clist = deductions.conflictedVariables(dstdeductions)
+        if clist:
+            cvar = clist[0]
+            if cvar in dstdeductions:
+                x = (- dst)
+                y = negclause.findConflict((- cvar),ctx)
+            else:
+                x = negclause.findConflict(cvar,ctx)
+                y = (- dst)
+            return (cvar,x,y,self)
+        return None
 
 class CNF(list):
     
@@ -128,9 +164,17 @@ class CNF(list):
         """
         return not(self)
     
-    def filterCTX(self,ctx,clause):
-        return CNF([cl for cl in self if not cl.isTrueCTX(ctx,clause)])
-    
+    def filterCTX(self,ctx):
+        cnfres  = CNF.true()
+        satlist = []
+        for clause in self:
+            sat = clause.filterCTX(ctx)
+            if sat:
+                satlist.add(sat)
+            else:
+                cnfres.andClause(clause)
+        return (cnfres,satlist)
+
     def isFalse(self):
         """
         Function checks if CNF is false
@@ -187,30 +231,6 @@ class CNF(list):
             res = res.orCNF(CNF([Clause([(- lit)]) for lit in clause]))
         return res
     
-    ##
-    ## Counting Variables/Literals
-    ##
-    
-    def addCNFLiterals(self,cnt):
-        for clause in self:
-            cnt = addClauseLiterals(clause,cnt)
-        return cnt
-    
-    def remCNFLiterals(self,cnt):
-        for clause in self:
-            cnt = remClauseLiterals(clause,cnt)
-        return cnt
-    
-    def addCNFVariables(self,cnt):
-        for clause in self:
-            cnt = addClauseVariables(clause,cnt)
-        return cnt
-
-    def remCNFVariables(self,cnt):
-        for clause in self:
-            cnt = remClauseVariables(clause,cnt)
-        return cnt
-
     def filterEndpoint(self,key):
         cnf = CNF([ clause.remove(key) for clause in self if not (- key) in clause])
         return cnf

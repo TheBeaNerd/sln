@@ -1,150 +1,91 @@
 import random
 from cnf import *
+from edge import *
+from copy import copy
 
-class Var():
+class edgeMap(dict):
     
-    nextID = 1
+    def __init__(self,src):
+        self.src = src
     
-    @staticmethod
-    def alloc():
-        res = Var.nextID
-        Var.nextID += 1
-        return res
+    def __missing__(self,dst):
+        return edge(self.src,dst)
     
-    @staticmethod
-    def avoid(lit):
-        Var.nextID = max(abs(lit)+1,Var.nextID)
-    
-    @staticmethod
-    def avoidSet(clause):
-        for e in clause:
-            Var.avoid(e)
-
-class condSet(dict):
-    
-    def __missing__(self, key):
-        return CNF.true()
-    
-    def __init__(self, *args, **kwargs):
-        self.init_update(*args, **kwargs)
-    
-    def init_update(self, *args, **kwargs):
-        for k, v in dict(*args, **kwargs).iteritems():
-            self[k] = v
-    
-    def __setitem__(self, key, val):
-        if not val.isTrue():
+    def __setitem__(self, key, edge):
+        if not val.isAlwaysTrue():
             dict.__setitem__(self, key, val)
         else:
             self.pop(key,None)
-    
-    def copy(self):
-        return copy.copy(self)
-    
-    def update(self,dst,cond):
-        """
-        Procedure updates Dset with dst:cnf
-        """
-        self[dst] = cond.andCNF(self[dst])
-        return self
-    
-    def orCond(self,cond):
-        """
-        Procedure or's cond into all conditions
-        """
-        res = self.copy()
-        for key in self.keys():
-            res[key] = cond.orCNF(res[key])
-        return res
 
-    def merge(self,cset):
-        """
-        Procedure (parallel) merges cset into this cset.
-        """
-        for (key,cond) in cset.iteritems():
-            self.update(key,cond)
-        return self
-    
-    def filterEndpoints(self,src):
-        res = condSet()
-        for key in self.keys():
-            cond = self[key]
-            cond = cond.filterEndpoint(key)
-            cond = cond.filterEndpoint(- src)
-            res[key] = cond
-    
-    def filterCTX(self,ctx,cond):
-        res = condSet()
+    def filterCTX(self,src,gr,ctx):
         for dst in self.keys():
-            dcond = ctx[(- dst)]
-            zed   = self[dst]
-            zed   = zed.filterCTX(ctx,cond)
-            zed   = zed.filterCTX(ctx,dcond)
-            res[dst] = zed
-        return res
+            self[dst].filterCTX(src,dst,gr,ctx)
+        return self
 
 class condGraph(dict):
     
-    def __missing__(self, key):
-        return condSet()
-    
-    def copy(self):
-        return copy.copy(self)
+    def __missing__(self, src):
+        return edgeMap(src)
     
     def addArc(self,src,cond,dst):
-        mp = self[src]
-        mp[dst] = cond.andCNF(mp[dst])
-        self[src] = mp
-        return
+        emap = self[src]
+        edge = emap[dst]
+        edge.unsat = cond.andCNF(edge.unsat)
+        emap[dst] = edge
+        self[src] = emap
+        return self
     
     def add2Clause(self,x,y,cond):
         self.addArc((- x),cond,y)
         self.addArc((- y),cond,x)
-        return
+        return self
     
     def filterEndpoints(self):
-        res = condGraph()
-        for src in self.keys():
-            res[src] = self[src].filterEndpoints(src)
-        return res
-    
+        for (src,emap) in self.iteritems():
+            for (dst,edge) in emap.iteritems():
+                emap[dst].filterEndpoints()
+        return self
+
     def filterCTX(self,ctx):
-        res = condGraph()
-        for src in self.keys():
-            cond = ctx[src]
-            res[src] = self[src].filterCTX(ctx,cond)
-        return res
+        for (src,emap) in self.iteritems():
+            for (dst,edge) in emap.iteritems():
+                emap[dst].filterCTX(self,ctx)
+        return self
     
     def step(self,g0):
         res = condGraph()
-        for (src,dset) in self.iteritems():
-            for (dst,cond) in dset.iteritems():
+        for (src,emap) in self.iteritems():
+            for (dst,edge) in emap.iteritems():
                 res[src] = g0[src].merge(self[src].merge(g0[dst].orCOND(cond)))
         return res
     
     def unconditionalGraph(self):
         res = Graph()
         for src in self.keys():
-            res[src] = Clause(self[src].keys())
+            res.addSet(src,self[src].keys())
         return res
 
 class Graph(dict):
     
     def __missing__(self, key):
-        return frozenset()
+        return set()
     
     def addSet(self,src,zset):
-        self[src] = self[src].union(zset)
+        xset = self[src]
+        xset.update(zset)
+        self[src] = xset
         return this
     
     def addElement(self,src,z):
-        self[src] = self[src].union([z])
+        xset = self[src]
+        xset.add(z)
+        self[src] = xset
         return this
     
     def getSet(self,sset):
-        res = frozenset()
+        res = set()
         for key in sset:
-            res = res.union(self[key])
+            res.update(self[key])
         return res
 
     def step(self,g):
