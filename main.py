@@ -1,15 +1,17 @@
 import graph
 import cnf
 
-cnf1 = cnf.readCNF("factoring.dimacs")
-cg1  = graph.toCondGraph(cnf1)
-ug1  = cg1.unconditionalGraph()
-cg2  = cg1.filterCTX(ug1)
-ug2  = cg2.unconditionalGraph()
-## Note: we always filter the initial graph
-cg3  = cg1.filterCTX(ug2)
-ug3  = cg3.unconditionalGraph()
-cg4  = cg1.filterCTX(ug3)
+for x in range(0,1000):
+    cnf1 = cnf.readCNF("factoring.dimacs")
+    cg1  = graph.toCondGraph(cnf1)
+    ug1  = cg1.unconditionalGraph()
+    cg2  = cg1.filterCTX(ug1)
+
+# ug2  = cg2.unconditionalGraph()
+# ## Note: we always filter the initial graph
+# cg3  = cg1.filterCTX(ug2)
+# ug3  = cg3.unconditionalGraph()
+# cg4  = cg1.filterCTX(ug3)
 
 ##
 ## We need to keep SAT edges around .. they may eventuall become UNSAT.

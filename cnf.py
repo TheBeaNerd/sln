@@ -18,6 +18,12 @@ class Clause(frozenset):
     def false():
         return Clause()
     
+    def __str__(self):
+        return str(list(self))
+    
+    def removeConflicts(self):
+        return Clause([ lit for lit in self if (- lit) not in self])
+    
     def orClause(self,clause):
         """
         Function computes the raw 'or' with the given clause
@@ -81,8 +87,10 @@ class Clause(frozenset):
     
     def findConflict(self,fwd,ctx):
         for lit in self:
-            if fwd in ctx[lit]:
+            if ((fwd == lit) or (fwd in ctx[lit])):
                 return lit
+        print ctx
+        assert(False)
         return None
     
     def SATcore(self,src,dst,ctx):
@@ -94,21 +102,34 @@ class Clause(frozenset):
         to a contradiction, the clause can be reduced to one of the
         form (!x + !y) where x => z and y => !z.  If the clause is
         SAT, we return (z,x,y).  If the clause is not SAT, we return
-        None.  Note: we do not consider (!src + dst) to be a valid SAT
-        core even if it is SAT.
+        None.  Note: we do not consider !src or dst or (!src + dst) to
+        be valid SAT cores even when they are SAT.
         """
         negclause = self.negate()
         deductions = negclause.forward(ctx)
         clist = deductions.conflictedVariables(deductions)
         if clist:
-            cvar = clist[0]
+            cvar = clist.pop()
             x = negclause.findConflict(cvar,ctx)
             y = negclause.findConflict((- cvar),ctx)
             return (cvar,x,y,self)
-        srcdeductions = ctx[src].forward(ctx).union([src])
+        ##
+        ## We need to remove conflicts because if the
+        ## src implication has both z and (- z) and
+        ## only one is part of the conflict then if
+        ## we choose the wrong one, we cannot find the
+        ## other with findConflict.
+        ## 
+        srcctx = ctx[src].union([src])
+        srcctx.discard(dst)
+        srcdeductions = Clause(srcctx).removeConflicts()
         clist = deductions.conflictedVariables(srcdeductions)
         if clist:
-            cvar = clist[0]
+            cvar = clist.pop()
+            # print "neg  : ",negclause
+            # print "ded  : ",deductions
+            # print "src  : [",src,"]",srcdeductions
+            # print "cvar : ",cvar
             if cvar in srcdeductions:
                 x = src
                 y = negclause.findConflict((- cvar),ctx)
@@ -116,10 +137,16 @@ class Clause(frozenset):
                 x = negclause.findConflict(cvar,ctx)
                 y = src
             return (cvar,x,y,self)
-        dstdeductions = ctx[(- dst)].forward(ctx).union([(- dst)])
+        dstctx = ctx[(- dst)].union([(- dst)])
+        dstctx.discard((- src))
+        dstdeductions = Clause(dstctx).removeConflicts()
         clist = deductions.conflictedVariables(dstdeductions)
         if clist:
-            cvar = clist[0]
+            cvar = clist.pop()
+            # print "neg  : ",negclause
+            # print "ded  : ",deductions
+            # print "dst  : [",dst,"]",dstdeductions
+            # print "cvar : ",cvar
             if cvar in dstdeductions:
                 x = (- dst)
                 y = negclause.findConflict((- cvar),ctx)
@@ -134,11 +161,15 @@ class CNF(list):
     @staticmethod
     def false():
         return CNF([Clause.false()])
-
+    
     @staticmethod
     def true():
         return CNF()
-
+    
+    def __str__(self):
+        res = [ str(clause) for clause in self ]
+        return str(res)
+    
     def subsumesClause(self,clause):
         """
         Function checks to see if the clause is subsumed (<=) by an entry in the CNF
@@ -157,24 +188,24 @@ class CNF(list):
             if not res.subsumesClause(clause):
                 res.append(clause)
         return res
-
+    
     def isTrue(self):
         """
         Function checks if CNF is true
         """
         return not(self)
     
-    def filterCTX(self,ctx):
+    def filterCTX(self,src,dst,ctx):
         cnfres  = CNF.true()
         satlist = []
         for clause in self:
-            sat = clause.filterCTX(ctx)
+            sat = clause.SATcore(src,dst,ctx)
             if sat:
-                satlist.add(sat)
+                satlist.append(sat)
             else:
-                cnfres.andClause(clause)
+                cnfres = cnfres.andClause(clause)
         return (cnfres,satlist)
-
+    
     def isFalse(self):
         """
         Function checks if CNF is false
@@ -183,7 +214,7 @@ class CNF(list):
             [clause] = self
             return clause.isFalse()
         return False
-
+    
     def andClause(self,clause):
         """
         Function and's clause with cnf
@@ -210,7 +241,7 @@ class CNF(list):
                 continue
             res.append(clause.union([lit]))
         return res
-
+    
     def orCNF(self,y):
         """
         Function computes the or of CNF's x and y

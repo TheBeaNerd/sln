@@ -12,8 +12,8 @@ class edgeMap(dict):
         return edge(self.src,dst)
     
     def __setitem__(self, key, edge):
-        if not val.isAlwaysTrue():
-            dict.__setitem__(self, key, val)
+        if not edge.isAlwaysTrue():
+            dict.__setitem__(self, key, edge)
         else:
             self.pop(key,None)
 
@@ -30,11 +30,18 @@ class condGraph(dict):
     def addArc(self,src,cond,dst):
         emap = self[src]
         edge = emap[dst]
-        edge.unsat = cond.andCNF(edge.unsat)
+        edge.cnf = cond.andCNF(edge.cnf)
         emap[dst] = edge
         self[src] = emap
         return self
     
+    def checkDEPS(self):
+        for (src,emap) in self.iteritems():
+            for (dst,edge) in emap.iteritems():
+                for sedge in edge.deps:
+                    if (not sedge.cnf.isTrue()):
+                        print "Fault : ",edge," thinks ",sedge," is SAT"
+
     def add2Clause(self,x,y,cond):
         self.addArc((- x),cond,y)
         self.addArc((- y),cond,x)
@@ -74,13 +81,13 @@ class Graph(dict):
         xset = self[src]
         xset.update(zset)
         self[src] = xset
-        return this
+        return self
     
     def addElement(self,src,z):
         xset = self[src]
         xset.add(z)
         self[src] = xset
-        return this
+        return self
     
     def getSet(self,sset):
         res = set()
