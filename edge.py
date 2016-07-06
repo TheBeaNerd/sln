@@ -36,6 +36,8 @@ class edge():
     def __str__(self):
         return str(self.src) + " =" + str(self.cnf) + "=> " + str(self.dst)
     
+    __repr__ = __str__
+    
     def isAlwaysTrue(self):
         return self.cnf.isTrue() and (not self.sat)
 
@@ -119,6 +121,9 @@ class edgeSet(list):
     def __init__(self):
         self.value = []
     
+    def __iter__(self):
+        return iter(self.value)
+    
     def indexOf(self,edge):
         index = 0
         for e in self.value:
@@ -129,12 +134,12 @@ class edgeSet(list):
     
     def add(self,edge):
         index = self.indexOf(edge)
-        if index:
+        if index is not None:
             self.value[index] = edge
         else:
             self.value.append(edge)
     
     def remove(self,edge):
         index = self.indexOf(edge)
-        if index:
+        if index is not None:
             self.value.pop(index)

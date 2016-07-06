@@ -1,11 +1,10 @@
 import graph
 import cnf
 
-for x in range(0,1000):
-    cnf1 = cnf.readCNF("factoring.dimacs")
-    cg1  = graph.toCondGraph(cnf1)
-    ug1  = cg1.unconditionalGraph()
-    cg2  = cg1.filterCTX(ug1)
+cnf1 = cnf.readCNF("factoring.dimacs")
+cg1  = graph.toCondGraph(cnf1)
+ug1  = cg1.unconditionalGraph()
+cg2  = cg1.filterCTX(ug1)
 
 # ug2  = cg2.unconditionalGraph()
 # ## Note: we always filter the initial graph
