@@ -19,8 +19,10 @@ class Clause(frozenset):
         return Clause()
     
     def __str__(self):
-        return str(list(self))
+        return list(self).__str__()
     
+    __repr__ = __str__
+
     def removeConflicts(self):
         return Clause([ lit for lit in self if (- lit) not in self])
     
@@ -167,8 +169,9 @@ class CNF(list):
         return CNF()
     
     def __str__(self):
-        res = [ str(clause) for clause in self ]
-        return str(res)
+        return list(self).__str__()
+    
+    __repr__ = __str__
     
     def subsumesClause(self,clause):
         """
@@ -262,7 +265,7 @@ class CNF(list):
             res = res.orCNF(CNF([Clause([(- lit)]) for lit in clause]))
         return res
     
-    def filterEndpoint(self,key):
+    def filterEndpoints(self,key):
         cnf = CNF([ clause.remove(key) for clause in self if not (- key) in clause])
         return cnf
 

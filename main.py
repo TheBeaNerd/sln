@@ -3,8 +3,11 @@ import cnf
 
 cnf1 = cnf.readCNF("factoring.dimacs")
 cg1  = graph.toCondGraph(cnf1)
-ug1  = cg1.unconditionalGraph()
-cg2  = cg1.filterCTX(ug1)
+cg2  = cg1.filterEndpoints()
+ug1  = cg2.unconditionalGraph()
+cg3  = cg2.filterCTX(ug1)
+##cg4  = cg3.filterCTX(ug1)
+##cg5  = cg4.filterCTX(ug1)
 
 # ug2  = cg2.unconditionalGraph()
 # ## Note: we always filter the initial graph

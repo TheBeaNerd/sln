@@ -50,20 +50,22 @@ class condGraph(dict):
     def filterEndpoints(self):
         for (src,emap) in self.iteritems():
             for (dst,edge) in emap.iteritems():
-                emap[dst].filterEndpoints()
+                edge.filterEndpoints()
         return self
-
+    
     def filterCTX(self,ctx):
         for (src,emap) in self.iteritems():
             for (dst,edge) in emap.iteritems():
-                emap[dst].filterCTX(self,ctx)
+                edge.filterCTX(self,ctx)
+                self[(- dst)][(- src)].filterCTX(self,ctx)
         return self
     
     def step(self,g0):
+        assert(False)
         res = condGraph()
         for (src,emap) in self.iteritems():
             for (dst,edge) in emap.iteritems():
-                res[src] = g0[src].merge(self[src].merge(g0[dst].orCOND(cond)))
+                res[src] = g0[src].merge(emap.merge(g0[dst].orCOND(cond)))
         return res
     
     def unconditionalGraph(self):

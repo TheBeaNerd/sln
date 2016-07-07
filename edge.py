@@ -57,7 +57,8 @@ class edge():
             gr[y][(- z)].deps.add(self)
 
     def filterEndpoints(self):
-        assert(False)
+        self.cnf.filterEndpoints((- self.src))
+        self.cnf.filterEndpoints(self.dst)
 
     def filterCTX(self,gr,ctx):
         """
