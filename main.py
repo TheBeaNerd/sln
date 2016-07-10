@@ -3,9 +3,48 @@ import cnf
 
 cnf1 = cnf.readCNF("factoring.dimacs")
 cg1  = graph.toCondGraph(cnf1)
-cg2  = cg1.filterEndpoints()
-ug1  = cg2.unconditionalGraph()
-cg3  = cg2.filterCTX(ug1)
+cg1  = cg1.filterEndpoints()
+cgn  = cg1.clone()
+
+ugn  = cgn.unconditionalGraph()
+cgn  = cgn.filterCTX(ugn)
+
+ug1  = cg1.unconditionalGraph()
+cg1  = cg1.filterCTX(ug1)
+
+for i in range(0,4):
+    
+    ugx  = ugn.clone()
+    lps  = ugx.findCycles()
+    n = 0
+    while not lps:
+        ugx  = ugx.step(ugx)
+        lps  = ugx.findCycles()
+        n += 1
+    
+    for loop in lps:
+        print loop,"loop contains",lps[loop]
+        for i in range(0,n):
+            cgn.step(lps[loop],cg1,ugn)
+    
+    ## I think we want a function that will filter
+    ## (and filter endpoints) just the loop ..
+    ## Actually, I think we should do this as part
+    ## of composition.  Again, we are only making
+    ## the graph stronger.
+    
+    ## But you understand that you are making the graph unsound in the
+    ## process.  I think that is OK.  We still expect to heal it
+    ## eventually.  In other words: we want to keep the unconditional
+    ## graph in sync with the conditional graph.
+
+    for loop in lps:
+        print "is",loop,"a loop?",ugn.aLoop(loop)
+    
+    cgn  = cgn.filterCTX(ugn)
+
+## Are loops still valid?
+
 ##cg4  = cg3.filterCTX(ug1)
 ##cg5  = cg4.filterCTX(ug1)
 

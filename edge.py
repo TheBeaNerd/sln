@@ -21,11 +21,11 @@ def SATtoCNF(satlist):
 
 class edge():
     
-    def __init__(self,src,dst):
+    def __init__(self,src,dst,cnf0 = cnf.CNF.true()):
         self.src   = src
         self.dst   = dst
         self.deps  = edgeSet()
-        self.cnf   = cnf.CNF.true()
+        self.cnf   = cnf0
         self.sat   = []
     
     def equiv(self,target):
@@ -57,9 +57,9 @@ class edge():
             gr[y][(- z)].deps.add(self)
 
     def filterEndpoints(self):
-        self.cnf.filterEndpoints((- self.src))
-        self.cnf.filterEndpoints(self.dst)
-
+        self.cnf = self.cnf.filterEndpoints((- self.src))
+        self.cnf = self.cnf.filterEndpoints(self.dst)
+    
     def filterCTX(self,gr,ctx):
         """
         filterCTX() applies the (presumably) stronger graph ctx to the
