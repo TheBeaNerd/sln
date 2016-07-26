@@ -1,6 +1,53 @@
 import graph
 import cnf
 
+# g = {1: set([9, 12]), 2: set([16, 10]), 3: set([14]), 4: set([11]), 5: set([13]), 6: set([15]), 7: set([-7, 28, 29, 7]), 8: set([24, 9, 18, 26]), 9: set([8, 1, 4]), 10: set([4, 2, -12]), 11: set([4, 3, 21]), 12: set([1, 10, 5, -10]), 13: set([2, 5, -20, 21]), 14: set([3, 5, -21]), 15: set([24, 1, -20, 6]), 16: set([6, 2]), 17: set([3, 6, 7, 28, 29]), 18: set([8, 10]), 19: set([10, 12]), 20: set([24, -15, -13]), 21: set([-14, 13, 22]), 22: set([25, 14]), 23: set([-27, 14, 21]), 24: set([8, 15]), 25: set([27, 20, 15]), 26: set([8]), 27: set([-23]), 28: set([7, 27, 28, 29]), 29: set([7, 28, 29]), -1: set([-15, -12, -9]), -29: set([-7, -17]), -28: set([17, -7]), -27: set([-28, -25]), -26: set([-8, 22]), -25: set([-22]), -24: set([-8, -15, -20]), -23: set([]), -22: set([26, -21, 21]), -21: set([-23, -13, -11, 22]), -20: set([-25]), -19: set([11]), -18: set([-8, 12]), -17: set([28]), -16: set([-2, -27]), -15: set([-24, -6, -25]), -14: set([-23, -22, -3]), -13: set([-21, 11, -5]), -12: set([18, -19, -1]), -11: set([19, -4, 13]), -10: set([-2, -12, -19, -18]), -9: set([-8, -1]), -8: set([8, -24, -26, -18, -9]), -7: set([-29, -28]), -6: set([-16, -15, 5, -17]), -5: set([-14, -13, -12, 6]), -4: set([-11, -10, -9]), -3: set([-14, -11, 2, -17]), -2: set([-16, 3, -10, -13])}
+
+# res = graph.Graph()
+# for key in [17, 28, 29, 7]:
+#     res[key] = g[key]
+#     res[(-key)] = g[(-key)]
+
+# {   
+#    7: set([-7, 28, 29, 7]), 
+#   -7: set([-29, -28]), 
+#  -29: set([-7, -17]), 
+#  -28: set([17, -7]), 
+#   17: set([28, 29, 7]), 
+#   29: set([28, 29, 7]),
+#   28: set([28, 29, 7]), 
+#  -17: set([28])
+# }
+
+# ;; Oops .. so here you have a partial graph composition.  When you
+# ;; take a couple steps, you end up with a graph that loops.
+# ;; Presumably, however, along the way you violate some invariant.  Which
+# ;; re-reduces the graph to the one we see here.  And the cycle
+# ;; continues forever.
+
+# ;; Perhaps the answer is that we need to avoid composing together elements
+# ;; of this set .. at least until we make some sort of progress elsewhere
+# ;; in the graph.
+
+## But the bigger question is what reason we have to believe that our 
+## algorithm terminates in a SAT or UNSAT state.
+
+## Following is a simple illustration of a similar case:
+##
+##  a -[  c ] -> !a
+## !a -[ !c ] ->  a
+##
+## This situation is merely similar becuase the loop is only broken 
+## in total .. either edge independely would be possible.  In the case
+## we were considering, one of the edges itself was ultimately SAT.
+##
+## Either way, note that there is no contradiction here.  Rather, we 
+## know that (a = !c).  Perhaps that would be the only way to resolve the
+## conflict .. by replacing a variable with its condition.
+##
+## At the same time, that sounds awfully hard to back out of.
+##
+
 cnf1 = cnf.readCNF("factoring.dimacs")
 cg1  = graph.toCondGraph(cnf1)
 cg1  = cg1.filterEndpoints()
@@ -9,23 +56,53 @@ cgn  = cg1.clone()
 ugn  = cgn.unconditionalGraph()
 cgn  = cgn.filterCTX(ugn)
 
+cgn.graphInvariant(ugn)
+
 ug1  = cg1.unconditionalGraph()
 cg1  = cg1.filterCTX(ug1)
 
-for i in range(0,4):
+## It should be an invariant that the unconditional graph should
+## contain edged for only conditional arcs that are not isTrue()
+
+size = len(cgn.keys())
+omit = []
+for itr in range(0,20):
+    
+    # print "omit",omit
+    
+    # for key in omit:
+    #     print    key ,"=>",ugn[   key ]
+    #     print (- key),"=>",ugn[(- key)]
     
     ugx  = ugn.clone()
     lps  = ugx.findCycles()
     n = 0
-    while not lps:
-        ugx  = ugx.step(ugx)
+    while (not lps) and (n < size):
+        ugx  = ugx.step(omit,ugn)
         lps  = ugx.findCycles()
         n += 1
     
-    for loop in lps:
-        print loop,"loop contains",lps[loop]
-        for i in range(0,n):
-            cgn.step(lps[loop],cg1,ugn)
+    if (n >= size):
+        omit = []
+        continue
+    
+    # for key in omit:
+    #     print    key ,"=>",ugx[   key ]
+    #     print (- key),"=>",ugx[(- key)]
+    
+    print "loop depth :",n
+    
+    minlen = min(len(lps[loop]) for loop in lps)
+    res = [loop for loop in lps if (len(lps[loop]) == minlen)]
+    loop = res[0]
+    lset = lps[loop]
+    print loop,"loop contains",lset
+    
+    print "is",loop,"a loop?",ugx.aLoop(loop)
+
+    for i in range(0,n):
+        cgn.step(lset,cg1,ugn)
+        cgn.graphInvariant(ugn)
     
     ## I think we want a function that will filter
     ## (and filter endpoints) just the loop ..
@@ -37,11 +114,16 @@ for i in range(0,4):
     ## process.  I think that is OK.  We still expect to heal it
     ## eventually.  In other words: we want to keep the unconditional
     ## graph in sync with the conditional graph.
-
-    for loop in lps:
-        print "is",loop,"a loop?",ugn.aLoop(loop)
+    
+    print "is",loop,"a loop?",ugn.aLoop(loop)
+    assert not ugn.aLoop(loop),"Hey, we've got a live one here!"
+    
+    omit = omit + list(lset) + [ (- x) for x in lset ]
     
     cgn  = cgn.filterCTX(ugn)
+    cgn.graphInvariant(ugn)
+    
+    print "Looping :",itr
 
 ## Are loops still valid?
 

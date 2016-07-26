@@ -45,13 +45,13 @@ class edge():
         return self.cnf.isTrue()
     
     def unregister(self,satset,gr):
-        print "unregister satset : " + str(satset)
+        ##print "unregister satset : " + str(satset)
         for (z,x,y,cond) in satset:
             gr[x][z].deps.remove(self)
             gr[y][(- z)].deps.remove(self)
 
     def register(self,satset,gr):
-        print "register satset : " + str(satset)
+        ##print "register satset : " + str(satset)
         for (z,x,y,cond) in satset:
             gr[x][z].deps.add(self)
             gr[y][(- z)].deps.add(self)
@@ -68,14 +68,14 @@ class edge():
         dependencies, and then re-evaluate all of the edges that depend
         upon this edge.
         """
-        print "Filtering Edge : " + str(self)
+        ##print "Filtering Edge : " + str(self)
         if self.cnf.isTrue():
             return
         (cnf,newsat) = self.cnf.filterCTX(self.src,self.dst,ctx)
         self.sat.extend(newsat)
         self.cnf = cnf
         if self.cnf.isTrue():
-            print "Dropping Satisfied Edge : " + str(self)
+            ##print "Dropping Satisfied Edge : " + str(self)
             ctx[self.src].discard(self.dst)
             ## Register this node as dependent on the SAT set ..
             self.register(self.sat,gr)
@@ -97,7 +97,7 @@ class edge():
         SAT core.  If the re-evaluated edge is UNSAT we unregister all
         of the dependencies and strengthen the graph ctx.
         """
-        print "Re-Evaluating Edge : " + str(self)
+        ##print "Re-Evaluating Edge : " + str(self)
         ##
         ## A satisfied condition ought not depend upon the edge
         ## that it guards.
@@ -111,7 +111,7 @@ class edge():
         if self.cnf.isTrue():
             self.register(newsatlist,gr)
         else:
-            print "Adding UNSAT Edge : " + str(self)
+            ##print "Adding UNSAT Edge : " + str(self)
             self.unregister(unchangesat,gr)
             ctx[self.src].add(self.dst)
         unchangesat.extend(newsatlist)

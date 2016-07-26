@@ -39,8 +39,7 @@ class condGraph(dict):
         for (src,emap) in self.iteritems():
             for (dst,edge) in emap.iteritems():
                 for sedge in edge.deps:
-                    if (not sedge.cnf.isTrue()):
-                        print "Fault : ",edge," thinks ",sedge," is SAT"
+                    assert sedge.cnf.isTrue(), "edge %s thinks edge %s is SAT" % (str(edge),str(sedge))
 
     def add2Clause(self,x,y,cond):
         self.addArc((- x),cond,y)
@@ -79,7 +78,7 @@ class condGraph(dict):
     def step(self,loop,g1,ctx):
         for (src,sdmap) in self.iteritems():
             if src in loop:
-                for (dst,sdedge) in sdmap.iteritems():
+                for (dst,sdedge) in list(sdmap.iteritems()):
                     if (dst in loop) and (not sdedge.isTrue()):
                         dxmap = g1[dst]
                         for (xdst,dxedge) in dxmap.iteritems():
@@ -91,10 +90,14 @@ class condGraph(dict):
                                 (cnf,sat) = cnf.filterCTX(src,xdst,ctx)
                                 cnf = redge.cnf.andCNF(cnf)
                                 if not cnf.isTrue():
+                                    if redge.cnf.isTrue():
+                                        redge.unregister(redge.sat,self)
                                     redge.cnf = cnf
                                     redge.sat.extend(sat)
                                     sdmap[xdst] = redge
                                     ctx[src].add(xdst)
+                                    ##print "Added edge from ",src,"to",xdst
+                                    self.checkDEPS()
     
     def unconditionalGraph(self):
         res = Graph()
@@ -103,6 +106,19 @@ class condGraph(dict):
                 if not edge.isTrue():
                     res.addElement(src,dst)
         return res
+    
+    def graphInvariant(self,ug):
+        assert set(self.keys()) == set(ug.keys()), "src key sets differ"
+        for (src,emap) in self.iteritems():
+            dset = ug[src]
+            cset = set(emap.keys())
+            assert dset.issubset(cset), "unconditional implications %s from %d are not in conditional graph" % (str(list(dset - cset)),src)
+            for (dst,edge) in emap.iteritems():
+                if dst in dset:
+                    assert not edge.cnf.isTrue(),"unconditional implication %d despite SAT guard from %d" % (dst,src)
+                else:
+                    assert edge.cnf.isTrue(),"missing unconditional implication %d despite UNSAT guard from %d" % (dst,src)
+
 
 def abset(slist):
     return set([abs(lit) for lit in slist])
@@ -139,11 +155,13 @@ class Graph(dict):
             res[key] = set(self[key])
         return res
 
-    def step(self,g):
+    def step(self,omit,g):
         res = Graph()
         for key in g.keys():
             dst = self[key]
-            res[key] = dst.union(self.getSet(dst))
+            if key in omit:
+                dst = [ x for x in dst if x not in omit ]
+            res[key] = self[key].union(self.getSet(dst))
         return res
 
     def inLoop(self,key,z):
@@ -162,25 +180,14 @@ class Graph(dict):
         loops = {}
         for key in abset(self.keys()):
             if ((key not in loopingkeys) and self.aLoop(key)):
-                ## There is a loop involving key ..
-                ## let's figure out the extent of this
-                ## loop ..
-                ## It is harder to determine which nodes are in
-                ## a loop in a partial fixpoint.
-                ## I think the rule is: if the candidate
-                ## contains both key and (- key)
-                ## So let's say we have:
-                ##
-                ## x ->  a -> !x
-                ## x -> !a -> !x
-                ## !x -> x
-                ##
-                ## In 1 step, x -> !x and !x -> x
-                ## Also, a -> (!x x) but a does not reach !a
-                ## .. so the rule for loop elements is that they
-                ## contain (x (- x))
-                pbody = self[key].union(self[(- key)])
-                loop = set([abs(z) for z in pbody if self.inLoop(z,key)])
+                ## If x -> -x and -x -> x then any node from
+                ## x that reaches -x and any node from -x that
+                ## reaches x are part of the loop.
+                pbody = self[key]
+                ploop = [abs(z) for z in pbody if (- key) in self[z]]
+                nbody = self[(- key)]
+                nloop = [abs(z) for z in nbody if key in self[z]]
+                loop = set(ploop + nloop)
                 loop.add(key)
                 loops[key] = loop
                 loopingkeys += loop
